@@ -1,0 +1,174 @@
+---
+title: "RNASeq & Clinical Data, ML, and Quarto"
+bibliography: citations.bibtex
+format:
+  html:
+    code-fold: true
+    theme:
+      dark: cyborg
+      light: zephyr
+      # light: vapor
+---
+
+<!-- This cell has some nice options for the theme! -->
+
+```{python}
+# Just some comments on YAML:
+
+# jupyter: python3 # should be unnecessary, or even bad if Py + R since use knitr for our crap
+
+# FYI:
+
+# VAPOR IS DOPE. But, requires light: vapor to get the real neon going on :)
+#
+# Cyborg is BLACK, darkly is gray-black, slate is gray,
+# Cyborg
+# Darkly
+# Slate
+# Solar
+# Superhero
+
+# LIGHT:
+# Morph is fun
+# lux is classy
+# zephyr good light, rich
+# litera corporate normie
+
+
+# ONE MORE THING ON CITATIONS:
+# can use zotero, per:
+# https://quarto.org/docs/visual-editor/technical.html#citations-from-zotero
+# but we on WSL2, so... one point to to Mac.
+# can use: https://github.com/XFY9326/Zotero-WSL-ProxyServer
+# this requires running server + zotero on windows. not sure if my shrimp computer can handle it, probably better export bibtex and import to whatever
+# may also be better so that reproducible with git etc.
+```
+
+Welcome. This work replicates some of what is seen in @carron_clinical_2021, @pizzuti_distinct_2020, and @sechrist_concordance_2020. Basically, our objective in the analysis is take RNASeq and clinical data from TCGA (upstream of this analysis, data were pooled) and build a model to predict cancer diagnosis. The value of the work is to achieve a secondary, probably cheaper RNASeq-based tool that can accurately and precisely predict cancer status, as confirmed by FISH/current biochemical test.
+
+The data are taken from TCGA/BRCA and anonymized, but are controlled per TCGA and therefore won't be in the Git repo, feel free to email me, pat\@patrickfinnerty.com.
+
+The dataset is rather field-specific, but, broadly, numeric and high-dimensional, with a binary categorical prediction being the goal. Various categorical data exist from clinic that are one-hot encoded.
+
+The technologies used here include:
+ <!-- and make sure to have double spacing with bullets -->
+
+- Quarto to generate this document using both Python and R libraries 
+
+- Python and R package requirements are managed via Poetry and renv for... good practice, at the very least. Reproducibility/traceability in future otherwise 
+
+- RNASeq data analysis tools in R, other statistical tools in Python 
+
+- Visualization tools in Py and R 
+
+- Machine learning libraries in Py (Sci-kit, XGB, PyTorch) 
+
+- (stretch) deployment of model to Hugging Face, which is then called via API, to be fancy! 
+
+- Coffee
+
+Alright, here we go!
+
+For a demonstration of a line plot on a polar axis, see @fig-polar.
+
+```{python}
+# | label: fig-polar
+# | fig-cap: "A line plot on a polar axis HOMIE WHA WHAT"
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+r = np.arange(0, 2, 0.01)
+theta = 2 * np.pi * r
+fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
+ax.plot(theta, r)
+ax.set_rticks([0.5, 1, 1.5, 2])
+ax.grid(True)
+plt.show()
+```
+
+For a demonstration of a line plot on a polar axis, see @fig-polar.
+
+<!-- one can do label/cross-ref as the above cell, label, or as section: -->
+
+<!-- https://quarto.org/docs/get-started/authoring/vscode.html#cross-references -->
+
+## And hello Pat! {#sec-example}
+
+We are currently in the @sec-example section
+
+<!-- This cell demos some of the plotly themes. Theme dependent figs/images is currently tricky and not worth it unless compensated -->
+
+```{python}
+# This cell demos all the plotly themes, as it is, probably just target the dark themes, idk if quarto creates a variable i can use conditionally. Yeah don't see documentation on it lol
+# This may b relevant, too much work for now though:
+# https://stackoverflow.com/questions/72992071/specifying-parameters-in-yml-file-for-quarto
+
+
+# | label: using plotly, dankness
+# | fig-cap: THIS IS DOPE!
+
+
+# import plotly.express as px
+
+# df = px.data.gapminder()
+# df_2007 = df.query("year==2007")
+
+# for template in [
+#     "plotly",
+#     "plotly_white",
+#     "plotly_dark",
+#     "ggplot2",
+#     "seaborn",
+#     "simple_white",
+#     "none",
+# ]:
+#     fig = px.scatter(
+#         df_2007,
+#         x="gdpPercap",
+#         y="lifeExp",
+#         size="pop",
+#         color="continent",
+#         log_x=True,
+#         size_max=60,
+#         template=template,
+#         title="Gapminder 2007: '%s' theme" % template,
+#     )
+#     fig.show()
+
+```
+
+Alrighty so this will be the actual shit we use:
+
+```{python}
+# | label: fig-plotly-dark
+# | fig-cap: super plotly
+
+import plotly.io as pio
+import plotly.express as px
+
+# pio.templates.default = "plotly_white"
+
+dark_template = "plotly_dark"
+df = px.data.gapminder()
+df_2007 = df.query("year==2007")
+
+fig = px.scatter(
+    df_2007,
+    x="gdpPercap",
+    y="lifeExp",
+    size="pop",
+    color="continent",
+    log_x=True,
+    size_max=60,
+    # this has a very specific position dawg
+    template=dark_template,
+    title="Gapminder 2007: current default theme",
+)
+fig.show()
+```
+
+```{r}
+x <- "Hi!"
+print(x)
+```
