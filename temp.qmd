@@ -1,0 +1,105 @@
+
+
+For a demonstration of a line plot on a polar axis, see @fig-polar.
+
+```{python}
+# | label: fig-polar
+# | fig-cap: "A line plot on a polar axis HOMIE WHA WHAT"
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+r = np.arange(0, 2, 0.01)
+theta = 2 * np.pi * r
+fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
+ax.plot(theta, r)
+ax.set_rticks([0.5, 1, 1.5, 2])
+ax.grid(True)
+plt.show()
+```
+
+For a demonstration of a line plot on a polar axis, see @fig-polar.
+
+<!-- one can do label/cross-ref as the above cell, label, or as section: -->
+
+<!-- https://quarto.org/docs/get-started/authoring/vscode.html#cross-references -->
+
+## And hello Pat! {#sec-example}
+
+We are currently in the @sec-example section
+
+<!-- This cell demos some of the plotly themes. Theme dependent figs/images is currently tricky and not worth it unless compensated -->
+
+```{python}
+# This cell demos all the plotly themes, as it is, probably just target the dark themes, idk if quarto creates a variable i can use conditionally. Yeah don't see documentation on it lol
+# This may b relevant, too much work for now though:
+# https://stackoverflow.com/questions/72992071/specifying-parameters-in-yml-file-for-quarto
+
+
+# | label: using plotly, dankness
+# | fig-cap: THIS IS DOPE!
+
+
+# import plotly.express as px
+
+# df = px.data.gapminder()
+# df_2007 = df.query("year==2007")
+
+# for template in [
+#     "plotly",
+#     "plotly_white",
+#     "plotly_dark",
+#     "ggplot2",
+#     "seaborn",
+#     "simple_white",
+#     "none",
+# ]:
+#     fig = px.scatter(
+#         df_2007,
+#         x="gdpPercap",
+#         y="lifeExp",
+#         size="pop",
+#         color="continent",
+#         log_x=True,
+#         size_max=60,
+#         template=template,
+#         title="Gapminder 2007: '%s' theme" % template,
+#     )
+#     fig.show()
+
+```
+
+Alrighty so this will be the actual shit we use:
+
+```{python}
+# | label: fig-plotly-dark
+# | fig-cap: super plotly
+
+import plotly.io as pio
+import plotly.express as px
+
+# pio.templates.default = "plotly_white"
+
+dark_template = "plotly_dark"
+df = px.data.gapminder()
+df_2007 = df.query("year==2007")
+
+fig = px.scatter(
+    df_2007,
+    x="gdpPercap",
+    y="lifeExp",
+    size="pop",
+    color="continent",
+    log_x=True,
+    size_max=60,
+    # this has a very specific position dawg
+    template=dark_template,
+    title="Gapminder 2007: current default theme",
+)
+fig.show()
+```
+
+```{r}
+x <- "Hi!"
+print(x)
+```

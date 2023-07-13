@@ -48,7 +48,7 @@ Welcome. This work replicates some of what is seen in @carron_clinical_2021, @pi
 
 The data are taken from TCGA/BRCA and anonymized, but are controlled per TCGA and therefore won't be in the Git repo, feel free to email me, pat\@patrickfinnerty.com.
 
-The dataset is rather field-specific, but, broadly, numeric and high-dimensional, with a binary categorical prediction being the goal. Various categorical data exist from clinic that are one-hot encoded.
+The dataset is rather field-specific, but, broadly, numeric and high-dimensional, with a binary categorical prediction (cancer assay result positive/negative) being the goal. Various categorical data exist from clinic that are one-hot encoded.
 
 The technologies used here include:
  <!-- and make sure to have double spacing with bullets -->
@@ -67,108 +67,203 @@ The technologies used here include:
 
 - Coffee
 
-Alright, here we go!
-
-For a demonstration of a line plot on a polar axis, see @fig-polar.
-
-```{python}
-# | label: fig-polar
-# | fig-cap: "A line plot on a polar axis HOMIE WHA WHAT"
-
-import numpy as np
-import matplotlib.pyplot as plt
-
-r = np.arange(0, 2, 0.01)
-theta = 2 * np.pi * r
-fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
-ax.plot(theta, r)
-ax.set_rticks([0.5, 1, 1.5, 2])
-ax.grid(True)
-plt.show()
-```
-
-For a demonstration of a line plot on a polar axis, see @fig-polar.
-
-<!-- one can do label/cross-ref as the above cell, label, or as section: -->
-
-<!-- https://quarto.org/docs/get-started/authoring/vscode.html#cross-references -->
-
-## And hello Pat! {#sec-example}
-
-We are currently in the @sec-example section
-
-<!-- This cell demos some of the plotly themes. Theme dependent figs/images is currently tricky and not worth it unless compensated -->
-
-```{python}
-# This cell demos all the plotly themes, as it is, probably just target the dark themes, idk if quarto creates a variable i can use conditionally. Yeah don't see documentation on it lol
-# This may b relevant, too much work for now though:
-# https://stackoverflow.com/questions/72992071/specifying-parameters-in-yml-file-for-quarto
 
 
-# | label: using plotly, dankness
-# | fig-cap: THIS IS DOPE!
+Alright, here we go! First read in the data, and preprocess; this includes streaming it in via readr object, getting data from only primary tumors per patient, and tranposing the dataset for use with edgeR:
+```{r}
+library(readr)
+library(dplyr)
+library(tidyr)
 
+setwd("~/R/ML_rnaseq/")
+rnaseq_path <- "./data/tcga.brca.rsem.csv"
 
-# import plotly.express as px
+# use readr for big files on a small machine, default chunk is 1000 rows
+df <- readr::read_delim(rnaseq_path)
 
-# df = px.data.gapminder()
-# df_2007 = df.query("year==2007")
+# FOR TESTING AND DEV COMMENT THIS OUT IN PROD!!!!
+df <- as.data.frame(df[, 1:9])
 
-# for template in [
-#     "plotly",
-#     "plotly_white",
-#     "plotly_dark",
-#     "ggplot2",
-#     "seaborn",
-#     "simple_white",
-#     "none",
-# ]:
-#     fig = px.scatter(
-#         df_2007,
-#         x="gdpPercap",
-#         y="lifeExp",
-#         size="pop",
-#         color="continent",
-#         log_x=True,
-#         size_max=60,
-#         template=template,
-#         title="Gapminder 2007: '%s' theme" % template,
-#     )
-#     fig.show()
+# can insanely print out all gene rows, notice all col_double()
+# spec(df)
 
-```
+# filter for only primary tumor expression;
+# extended analysis in future with secondary etc. possible
+# for convenience though, 1:1 patient:RNAseq data
+df <- df %>%
+    filter(grepl("Primary Tumor", sample_type))
 
-Alrighty so this will be the actual shit we use:
+# with primary tumor expression, drop useless columns
+df <- df %>%
+    select(-c("bcr_patient_barcode", "sample_type"))
 
-```{python}
-# | label: fig-plotly-dark
-# | fig-cap: super plotly
+# behold just patient id and genes
+head(df)
 
-import plotly.io as pio
-import plotly.express as px
+# edgeR operates with the gene names as rows,
+# therefore transpose!
+# this is base case of transpose:
+# df_t = t(df)
 
-# pio.templates.default = "plotly_white"
-
-dark_template = "plotly_dark"
-df = px.data.gapminder()
-df_2007 = df.query("year==2007")
-
-fig = px.scatter(
-    df_2007,
-    x="gdpPercap",
-    y="lifeExp",
-    size="pop",
-    color="continent",
-    log_x=True,
-    size_max=60,
-    # this has a very specific position dawg
-    template=dark_template,
-    title="Gapminder 2007: current default theme",
+# but we wanna use row name as new cols, so it gets cooky with this dataset
+# basically skip row indeces/colnames when transposing
+df_t = setNames(
+    data.frame(t(df[, -1])),
+    df[, 1]
 )
-fig.show()
+# df_t <- data.frame(t(df[-1, ]))
+# colnames(df_t) <- df[1, -1]
+
+head(df_t)
+
+# round up the data to nearest whole number transcript, used for filtering noise
+df_t <- round(df_t, digits = 0)
+```
+
+The above cell was just to get and preprocess rnaseq data. Next step is reading in clinical data.
+
+```{r}
+clinical_data_path <- "./data/brca_tcga_clinical_data.csv"
+df_clinic <- read_delim(clinical_data_path)
+
+# IHC is a biochemical test for cancer diagnosis; we'll use this to build our RNASeq model and teach the model what expression profiles ~ IHC 
+
+# look at data types
+spec(df_clinic)
+# summary(df_clinic)
+
+
+# SO, NOW LET'S CHOOSE WHAT DATA TO KEEP FROM HERE. SO FAR, ER AND PR ARE MOST FILLED IN
+
+# Calculate the number of NA values in each column, and sort for lowest first, cols we wanna use
+
+na_counts <- colSums(is.na(df_clinic))
+# we want smallest vals, get those cols shown first
+na_counts <- sort(na_counts)
+print(na_counts)
+
+# look at a few of these that could be interesting, not lose so much data. ethnicity is ~160 entries missing
+
+# head(df_clinic$`ICD-10 Classification`)
+# head(df_clinic$`Menopause Status`)
+# unique(df_clinic$`Menopause Status`)
+# unique(df_clinic$`Prior Cancer Diagnosis Occurence`)
+# unique(df_clinic$`Mutation Count`)
+
+# candidate features:
+# Is FFPE
+# Menopause Status
+# Prior Cancer Diagnosis Occurence
+# Mutation Count
+# Somatic Status
+# Oncotree Code
+
+# missing entries of data we really flippni want:
+# ER Status By IHC, 53
+# PR status by ihc, 54
+# IHC-HER2, 185
+
+# let's see what results look like here:
+unique(df_clinic$`ER Status By IHC`)
+unique(df_clinic$`PR status by ihc`)
+unique(df_clinic$`IHC-HER2`)
+
+# So, we got pos, neg, indet and NA. Cool.
+df_ihc <- df_clinic %>%
+  select('Patient ID', 'ER Status By IHC', 'PR status by ihc', 'IHC-HER2')
+
+# note x by ihc != ihc-her2
+print(df_ihc)
+
+# spec(df_ihc)
+summary(df_ihc)
+
+# BIG STEP HERE!!!, MATCH UP PATIENTS WITH IHC RESULTS AND THOSE WITH RNASEQ DATA
+# use tricksy `Patient ID` obj name
+`Patient ID` <- intersect(
+  df_ihc$`Patient ID`,
+  colnames(df_t)
+)
+
+matching_ids <- as.data.frame(`Patient ID`)
+head(matching_ids)
+
+# Yes:
+# keep the rnaseq results in this step, ihc next
+df_rnaseq_matched <- select((df_t, `Patient ID`)
+
+# keep ihc results that are in both df_ihc and df_t, latter is the transposed rnaseq
+df_ihc_matched <- semi_join(df_ihc, matching_ids, by = "Patient ID")
+
+# in case we need later, keep those thaat didn't match
+weird_rows <- anti_join(df_ihc, matching_ids, by = "Patient ID")
+
+# remove any duplicates/na that could exist
+df_ihc_matched <- distinct(df_ihc_matched)
+df_ihc_matched <- drop_na(df_ihc_matched)
+
+# from 1108 samples, down to 1093 after matching and clearing the NAs etc. could get more if we only do 'X by ihc' but curious on the interplay there
+summary(df_ihc_matched)
+```
+
+
+Whew! OK, found some features we'd like to use, and may need to modify, or create new... consensus diagnosis, etc. 
+
+Next step is, looking deeper into the RNASeq data, not using the clinical data we just all got quite yet.
+
+```{r}
+dim()
+
 ```
 
 ```{r}
-x <- "Hi!"
-print(x)
+# library(quarto)
+# library(dplyr)
+# library(tidyr)
+# library(knitr)
+# library(edgeR)
+# library(readr)
+
+# setwd("~/R/ML_rnaseq/")
+# rnaseq_path <- "./data/tcga.brca.rsem.csv"
+
+# chunk_size <- 1000 # Specify the number of rows to read per chunk
+
+# # Open a connection to the file
+# file_con <- file(rnaseq_path, "r")
+
+# # chunk <- read_delim(file_con, delim = ",", col_names = TRUE, n_max = chunk_size)
+
+# # print(chunk)
+
+
+# # Read and process the data in chunks
+# while (!feof(file_con)) {
+#     # Read a chunk of data
+#     # chunk <- read_csv(file_con, delim = ",", col_names = TRUE, n_max = chunk_size)
+#     chunk <- read_delim(file_con, delim = ",", col_names = TRUE, n_max = chunk_size)
+#     print(chunk)
+#     # Process the chunk as needed
+#     # Example: Calculate some summary statistics
+#     # summary_stats <- chunk %>%
+#     #   group_by(GroupingVariable) %>%
+#     #   summarise(SumValue = sum(Value))
+
+#     # Perform further analysis using edgeR or other packages
+#     # ...
+
+#     # Print or store the results of each chunk if necessary
+#     # print(summary_stats)
+# }
+
+# # Close the file connection
+# close(file_con)
+
+# this takes like 2-3 mins to read, is being read into memory etc.
+# df_rnaseq <- read.csv("./data/tcga.brca.rsem.csv", stringsAsFactors = FALSE)
+# print(df_rnaseq)
+
 ```
+
+
+
