@@ -170,7 +170,7 @@ unique(df_clinic$`IHC-HER2`)
 
 # So, we got pos, neg, indet and NA. Cool.
 df_ihc <- df_clinic %>%
-  select('Patient ID', 'ER Status By IHC', 'PR status by ihc', 'IHC-HER2')
+    select("Patient ID", "ER Status By IHC", "PR status by ihc", "IHC-HER2")
 
 # note x by ihc != ihc-her2
 print(df_ihc)
@@ -181,16 +181,12 @@ summary(df_ihc)
 # BIG STEP HERE!!!, MATCH UP PATIENTS WITH IHC RESULTS AND THOSE WITH RNASEQ DATA
 # use tricksy `Patient ID` obj name
 `Patient ID` <- intersect(
-  df_ihc$`Patient ID`,
-  colnames(df_t)
+    df_ihc$`Patient ID`,
+    colnames(df_t)
 )
 
 matching_ids <- as.data.frame(`Patient ID`)
 head(matching_ids)
-
-# Yes:
-# keep the rnaseq results in this step, ihc next
-df_rnaseq_matched <- select((df_t, `Patient ID`)
 
 # keep ihc results that are in both df_ihc and df_t, latter is the transposed rnaseq
 df_ihc_matched <- semi_join(df_ihc, matching_ids, by = "Patient ID")
@@ -204,6 +200,13 @@ df_ihc_matched <- drop_na(df_ihc_matched)
 
 # from 1108 samples, down to 1093 after matching and clearing the NAs etc. could get more if we only do 'X by ihc' but curious on the interplay there
 summary(df_ihc_matched)
+
+
+# Yes:
+# keep the rnaseq results in this step
+# NOTE: 12 July 2023 unfinished
+# df_rnaseq_matched <- select((df_t, `Patient ID`)
+
 ```
 
 
@@ -212,7 +215,6 @@ Whew! OK, found some features we'd like to use, and may need to modify, or creat
 Next step is, looking deeper into the RNASeq data, not using the clinical data we just all got quite yet.
 
 ```{r}
-dim()
 
 ```
 
